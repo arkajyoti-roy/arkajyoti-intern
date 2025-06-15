@@ -1,4 +1,4 @@
-/* ChatApp.css */
+
 * {
   margin: 0;
   padding: 0;
@@ -26,7 +26,7 @@
   pointer-events: none;
 }
 
-/* Header */
+
 .chat-header {
   background: rgba(255, 255, 255, 0.95);
   backdrop-filter: blur(20px);
@@ -85,7 +85,7 @@
   transform: translateY(-1px);
 }
 
-/* Messages Area */
+
 .messages-area {
   flex: 1;
   overflow-y: auto;
@@ -112,7 +112,7 @@
   background: rgba(0, 0, 0, 0.3);
 }
 
-/* Welcome Screen */
+
 .welcome-container {
   height: 100%;
   display: flex;
@@ -253,7 +253,7 @@
   text-align: left;
 }
 
-/* Typing Animation */
+
 .message-bubble.loading {
   padding: 20px;
 }
@@ -291,7 +291,7 @@
   }
 }
 
-/* Input Area */
+
 .input-area {
   padding: 24px;
   background: rgba(255, 255, 255, 0.95);
@@ -370,7 +370,7 @@
   transform: translateY(-50%) scale(1);
 }
 
-/* Responsive Design */
+
 @media (max-width: 768px) {
   .chat-header {
     padding: 16px 20px;
