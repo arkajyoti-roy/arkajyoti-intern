@@ -7,100 +7,54 @@ const ChatApp = () => {
   const [isLoading, setIsLoading] = createSignal(false);
   const [error, setError] = createSignal("");
 
-  let messagesEndRef;
-  let textareaRef;
+  let textareaRef, messagesEndRef;
 
-  const scrollToBottom = () => {
-    messagesEndRef?.scrollIntoView({ behavior: "smooth" });
+  const addMessage = (text, sender, isError = false) => {
+    setMessages((prev) => [
+      ...prev,
+      { id: Date.now(), text, sender, timestamp: new Date(), isError },
+    ]);
   };
 
-  createEffect(() => {
-    if (messages().length > 0) {
-      setTimeout(scrollToBottom, 100);
-    }
-  });
-
-  const generateAIResponse = async (userMessage) => {
-    const endpoints = [
-      "http://127.0.0.1:8000/generate",
-      "http://localhost:8000/generate",
-    ];
-
-    for (const endpoint of endpoints) {
+  const generateAIResponse = async (text) => {
+    const endpoints = ["http://127.0.0.1:8000/generate", "http://localhost:8000/generate"];
+    for (const url of endpoints) {
       try {
-        console.log(`Trying endpoint: ${endpoint}`);
-        const response = await fetch(endpoint, {
+        const res = await fetch(url, {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Accept: "application/json",
-          },
+          headers: { "Content-Type": "application/json", Accept: "application/json" },
           mode: "cors",
-          body: JSON.stringify({
-            prompt: userMessage,
-          }),
+          body: JSON.stringify({ prompt: text }),
         });
-
-        if (!response.ok) {
-          throw new Error(
-            `Server error: ${response.status} - ${response.statusText}`
-          );
+        if (res.ok) {
+          const { response } = await res.json();
+          return response || "Sorry, empty response.";
         }
-        const data = await response.json();
-
-        console.log("Success with endpoint:", endpoint);
-        return data.response || "Sorry, empty response from Gemini.";
-      } catch (error) {
-        console.log(`Failed with ${endpoint}:`, error.message);
-        continue;
+        throw new Error(`Server error: ${res.status}`);
+      } catch (err) {
+        console.log(`Failed on ${url}:`, err.message);
       }
     }
-
-    throw new Error(
-      "Cannot connect to server. Please check:\n1. Server is running\n2. Server allows CORS\n3. Server is on port 8000 or 5000"
-    );
+    throw new Error("Server connection issue.");
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const message = inputValue().trim();
-    if (!message || isLoading()) return;
+    const msg = inputValue().trim();
+    if (!msg || isLoading()) return;
 
-    const userMessage = {
-      id: Date.now(),
-      text: message,
-      sender: "user",
-      timestamp: new Date(),
-    };
-
-    setMessages((prev) => [...prev, userMessage]);
+    addMessage(msg, "user");
     setInputValue("");
     setIsLoading(true);
     setError("");
-
-    if (textareaRef) {
-      textareaRef.style.height = "auto";
-    }
+    if (textareaRef) textareaRef.style.height = "auto";
 
     try {
-      const aiResponseText = await generateAIResponse(message);
-      const aiMessage = {
-        id: Date.now() + 1,
-        text: aiResponseText,
-        sender: "assistant",
-        timestamp: new Date(),
-      };
-      setMessages((prev) => [...prev, aiMessage]);
-    } catch (error) {
-      const errorMessage = {
-        id: Date.now() + 1,
-        text: error.message,
-        sender: "assistant",
-        timestamp: new Date(),
-        isError: true,
-      };
-      setMessages((prev) => [...prev, errorMessage]);
-      setError(error.message);
+      const aiReply = await generateAIResponse(msg);
+      addMessage(aiReply, "assistant");
+    } catch (err) {
+      addMessage(err.message, "assistant", true);
+      setError(err.message);
     } finally {
       setIsLoading(false);
     }
@@ -113,12 +67,12 @@ const ChatApp = () => {
     }
   };
 
-  const adjustTextareaHeight = () => {
-    if (textareaRef) {
-      textareaRef.style.height = "auto";
-      textareaRef.style.height = Math.min(textareaRef.scrollHeight, 150) + "px";
-    }
-  };
+  // const adjustTextareaHeight = () => {
+  //   if (textareaRef) {
+  //     textareaRef.style.height = "auto";
+  //     textareaRef.style.height = Math.min(textareaRef.scrollHeight, 150) + "px";
+  //   }
+  // };
 
   const clearChat = () => {
     setMessages([]);
@@ -126,27 +80,15 @@ const ChatApp = () => {
     textareaRef?.focus();
   };
 
-  const formatTime = (date) => {
-    return date.toLocaleTimeString("en-US", {
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    });
-  };
-
   const retryLastMessage = () => {
-    const lastUserMessage = messages()
-      .filter((m) => m.sender === "user")
-      .pop();
-    if (lastUserMessage) {
-      setInputValue(lastUserMessage.text);
-      setMessages((prev) =>
-        prev.filter(
-          (m) => !m.isError || m.id !== messages()[messages().length - 1].id
-        )
-      );
+    const lastUser = [...messages()].reverse().find((m) => m.sender === "user");
+    if (lastUser) {
+      setInputValue(lastUser.text);
+      setMessages((prev) => prev.filter((m) => !m.isError || m.id !== prev.at(-1).id));
     }
   };
+
+  const formatTime = (d) => d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true });
 
   return (
     <div class="chat-app">
@@ -158,73 +100,42 @@ const ChatApp = () => {
           </div>
           <div class="header-actions">
             <Show when={error()}>
-              <div class="connection-status error">⚠️ Connection Error</div>
+              <div class="connection-status error">Connection Error</div>
             </Show>
-            <Show when={messages().length > 0}>
-              <button class="clear-btn" onClick={clearChat}>
-                Clear Chat
-              </button>
+            <Show when={messages().length}>
+              <button class="clear-btn" onClick={clearChat}>Clear Chat</button>
             </Show>
           </div>
         </div>
       </div>
 
       <div class="messages-area">
-        <Show when={messages().length === 0}>
+        <Show when={!messages().length}>
           <div class="welcome-container">
             <div class="welcome-content">
               <div class="welcome-icon">💬</div>
               <h2>How can I help you today?</h2>
-              <p>
-                Start a conversation by typing a message below. I'm here to
-                assist you with questions, tasks, or just have a friendly chat!
-              </p>
-
+              <p>Start a conversation below. I'm here to assist with questions, tasks, or friendly chats!</p>
               <div class="suggestion-chips">
-                <button
-                  class="suggestion-chip"
-                  onClick={() =>
-                    setInputValue("What's the weather like today?")
-                  }
-                >
-                  Ask about weather
-                </button>
-                <button
-                  class="suggestion-chip"
-                  onClick={() => setInputValue("Help me plan my day")}
-                >
-                  Plan my day
-                </button>
-                <button
-                  class="suggestion-chip"
-                  onClick={() => setInputValue("Tell me a fun fact")}
-                >
-                  Tell me a fun fact
-                </button>
+                {["Suggest some load testing tools for APIs.", "Tell me a joke or a pun.", "Recommend a movie or series.", "Tell me a fun fact"].map((msg) => (
+                  <button class="suggestion-chip" onClick={() => setInputValue(msg)}>{msg}</button>
+                ))}
               </div>
             </div>
           </div>
         </Show>
 
-        <Show when={messages().length > 0}>
+        <Show when={messages().length}>
           <div class="messages-container">
             <For each={messages()}>
-              {(message) => (
-                <div
-                  class={`message-wrapper ${message.sender} ${
-                    message.isError ? "error" : ""
-                  }`}
-                >
+              {(msg) => (
+                <div class={`message-wrapper ${msg.sender} ${msg.isError ? "error" : ""}`}>
                   <div class="message-bubble">
-                    <div class="message-content">{message.text}</div>
+                    <div class="message-content">{msg.text}</div>
                     <div class="message-actions">
-                      <div class="message-time">
-                        {formatTime(message.timestamp)}
-                      </div>
-                      <Show when={message.isError}>
-                        <button class="retry-btn" onClick={retryLastMessage}>
-                          🔄 Retry
-                        </button>
+                      <div class="message-time">{formatTime(msg.timestamp)}</div>
+                      <Show when={msg.isError}>
+                        <button class="retry-btn" onClick={retryLastMessage}>Retry</button>
                       </Show>
                     </div>
                   </div>
@@ -243,7 +154,6 @@ const ChatApp = () => {
                 </div>
               </div>
             </Show>
-
             <div ref={messagesEndRef}></div>
           </div>
         </Show>
@@ -265,23 +175,12 @@ const ChatApp = () => {
               rows="1"
               disabled={isLoading()}
             />
-            <button
-              type="submit"
-              class="send-button"
-              disabled={!inputValue().trim() || isLoading()}
-            >
+            <button type="submit" class="send-button" disabled={!inputValue().trim() || isLoading()}>
               <Show when={isLoading()}>
                 <div class="button-spinner"></div>
               </Show>
               <Show when={!isLoading()}>
-                <svg
-                  width="20"
-                  height="20"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" />
                 </svg>
               </Show>
