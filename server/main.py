@@ -18,15 +18,16 @@ genai.configure(api_key=api_key)
 model = genai.GenerativeModel("gemini-1.5-flash")
 
 # Tweet server config
-TWEET_API_URL = "https://twitterclone-server-2xz2.onrender.com/post_tweet"
-TWEET_API_KEY = "arkajyoti_0f4222e691df6cc5066939a758ec30d6"
-USERNAME = "arkajyoti"
+TWEET_API_URL = os.getenv("TWITTER_API_URL")
+TWEET_API_KEY = os.getenv("TWITTER_API_URL_KEY")
+USERNAME = os.getenv("TWITTER_USERNAME")
 
 # FastAPI setup
 app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["http://localhost:5173",
+    "http://localhost:5174"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
