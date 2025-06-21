@@ -432,6 +432,108 @@
   margin-top: 10px;
   margin-left: -1px;
 }
+/* .editable-message {
+  width: 100%;
+  border: 1px solid #ccc;
+  padding: 6px;
+  border-radius: 4px;
+  resize: both;
+  font-family: inherit;
+  font-size: 0.95rem;
+  margin-bottom: 6px;
+} */
+/* .editable-message {
+  min-width: 500px;
+  min-height: 280px;
+  resize: both;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  font-family: inherit;
+  font-size: 0.95rem;
+  box-sizing: border-box;
+} */
+
+
+.editable-message {
+  /* Base responsive dimensions */
+  width: 100%;
+  max-width: 800px;
+  min-width: 280px;
+  min-height: 200px;
+  
+  /* Existing styles */
+  resize: both;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  font-family: inherit;
+  font-size: 0.95rem;
+  box-sizing: border-box;
+  
+  /* Enhanced responsive features */
+  transition: all 0.2s ease;
+}
+
+/* Tablet styles */
+@media (min-width: 768px) {
+  .editable-message {
+    min-width: 400px;
+    min-height: 240px;
+    padding: 10px 12px;
+  }
+}
+
+/* Desktop styles */
+@media (min-width: 1024px) {
+  .editable-message {
+    min-width: 500px;
+    min-height: 280px;
+    padding: 12px 14px;
+  }
+}
+
+/* Mobile-specific adjustments */
+@media (max-width: 767px) {
+  .editable-message {
+    /* Remove resize on mobile for better UX */
+    resize: vertical;
+    min-height: 160px;
+    padding: 8px;
+    font-size: 16px; /* Prevents zoom on iOS */
+    border-radius: 8px;
+  }
+}
+
+/* Small mobile devices */
+@media (max-width: 480px) {
+  .editable-message {
+    min-height: 140px;
+    padding: 6px 8px;
+    border-radius: 6px;
+  }
+}
+
+/* Focus and interaction states */
+.editable-message:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.2);
+}
+
+/* Container wrapper for better responsive behavior */
+.editable-message-container {
+  width: 100%;
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 0 16px;
+}
+
+@media (max-width: 480px) {
+  .editable-message-container {
+    padding: 0 8px;
+  }
+}
 
 
 .post-btn {
