@@ -17,14 +17,14 @@ TWEET_API_URL = os.getenv("TWITTER_API_URL")
 TWEET_API_KEY = os.getenv("TWITTER_API_URL_KEY")
 USERNAME = os.getenv("TWITTER_USERNAME")
 
-# Gemini model setup
+# Configure Gemini
 genai.configure(api_key=api_key)
 model = genai.GenerativeModel("gemini-1.5-flash")
 
-# FastAPI setup
+# FastAPI app setup
 app = FastAPI()
 
-# CORS middleware
+# CORS configuration
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173", "http://localhost:5174"],
@@ -33,14 +33,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Request body models
+# Request body schemas
 class PromptRequest(BaseModel):
     prompt: str
 
 class PostRequest(BaseModel):
     text: str
 
-# Function to post tweet
+# Post tweet function
 def post_tweet(text: str):
     try:
         payload = {"username": USERNAME, "text": text}
@@ -50,12 +50,17 @@ def post_tweet(text: str):
     except Exception as e:
         print("[ERROR] Tweet post failed:", str(e))
 
-# Endpoint to generate response only
+# Generate concise AI response
 @app.post("/generate")
 def generate_response(request: PromptRequest):
     try:
-        response = model.generate_content(request.prompt)
+        refined_prompt = f"Respond concisely in a tweet-like format (under 280 characters): {request.prompt}"
+        response = model.generate_content(refined_prompt)
         tweet_text = response.text.strip()
+
+        # Trim to 280 chars if needed
+        if len(tweet_text) > 280:
+            tweet_text = tweet_text[:277].rsplit(" ", 1)[0] + "..."
 
         return {
             "response": tweet_text,
@@ -68,7 +73,7 @@ def generate_response(request: PromptRequest):
             "details": str(e)
         })
 
-# Endpoint to post tweet after confirmation
+# Confirm and post tweet
 @app.post("/post")
 def confirm_and_post(request: PostRequest):
     try:
