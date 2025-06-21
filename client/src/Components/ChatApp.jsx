@@ -6,6 +6,8 @@ const ChatApp = () => {
   const [inputValue, setInputValue] = createSignal("");
   const [isLoading, setIsLoading] = createSignal(false);
   const [error, setError] = createSignal("");
+  const [pendingPost, setPendingPost] = createSignal("");
+  const [isPosting, setIsPosting] = createSignal(false);
 
   let textareaRef, messagesEndRef;
 
@@ -38,6 +40,26 @@ const ChatApp = () => {
     throw new Error("Server connection issue.");
   };
 
+  const confirmAndPost = async () => {
+    setIsPosting(true);
+    try {
+      const res = await fetch("http://localhost:8000/post", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: pendingPost() }),
+      });
+
+      if (!res.ok) throw new Error(`Post failed: ${res.status}`);
+      addMessage("✅ Tweet posted successfully!", "system");
+      setPendingPost("");
+    } catch (err) {
+      addMessage(err.message, "assistant", true);
+      setError(err.message);
+    } finally {
+      setIsPosting(false);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     const msg = inputValue().trim();
@@ -52,6 +74,7 @@ const ChatApp = () => {
     try {
       const aiReply = await generateAIResponse(msg);
       addMessage(aiReply, "assistant");
+      setPendingPost(aiReply);
     } catch (err) {
       addMessage(err.message, "assistant", true);
       setError(err.message);
@@ -67,16 +90,10 @@ const ChatApp = () => {
     }
   };
 
-  // const adjustTextareaHeight = () => {
-  //   if (textareaRef) {
-  //     textareaRef.style.height = "auto";
-  //     textareaRef.style.height = Math.min(textareaRef.scrollHeight, 150) + "px";
-  //   }
-  // };
-
   const clearChat = () => {
     setMessages([]);
     setError("");
+    setPendingPost("");
     textareaRef?.focus();
   };
 
@@ -88,7 +105,9 @@ const ChatApp = () => {
     }
   };
 
-  const formatTime = (d) => d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true });
+  const formatTime = (d) => d.toLocaleTimeString("en-US", {
+    hour: "2-digit", minute: "2-digit", hour12: true
+  });
 
   return (
     <div class="chat-app">
@@ -138,6 +157,13 @@ const ChatApp = () => {
                         <button class="retry-btn" onClick={retryLastMessage}>Retry</button>
                       </Show>
                     </div>
+                    <Show when={msg.text === pendingPost() && msg.sender === "assistant"}>
+                      <div class="confirm-section">
+                        <button class="post-btn" disabled={isPosting()} onClick={confirmAndPost}>
+                          {isPosting() ? "Posting..." : "Post"}
+                        </button>
+                      </div>
+                    </Show>
                   </div>
                 </div>
               )}
@@ -167,10 +193,7 @@ const ChatApp = () => {
               class="message-input"
               placeholder="Type your message..."
               value={inputValue()}
-              onInput={(e) => {
-                setInputValue(e.target.value);
-                adjustTextareaHeight();
-              }}
+              onInput={(e) => setInputValue(e.target.value)}
               onKeyDown={handleKeyDown}
               rows="1"
               disabled={isLoading()}
