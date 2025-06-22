@@ -322,47 +322,51 @@ const ChatApp = () => {
         </Show>
 
         {/* Input Section - Centered when no posts, below posts when they exist */}
-        <section class={`mb-8 transition-all duration-300 ${!hasGeneratedPosts() && !isLoading() ? 'flex justify-center items-center min-h-96' : ''}`}>
-          <div class="w-full max-w-2xl">
-            <div class="text-center mb-6">
-              <h2 class="text-2xl font-bold text-slate-800 mb-2 flex items-center justify-center gap-2">
-                Describe Your Post
-              </h2>
-              <p class="text-slate-600">Tell us what kind of content you want to create</p>
-            </div>
-            
-            <form class={`bg-white rounded-xl p-6 shadow-sm border border-slate-200 ${!hasGeneratedPosts() && !isLoading() ? 'ml-0' : 'w-full max-w-4xl'}`} onSubmit={handleSubmit}>
-              <div class="flex flex-col gap-4">
-                <textarea
-                  ref={textareaRef}
-                  class="w-full min-h-20 p-4 border-2 border-slate-200 rounded-lg resize-vertical transition-all duration-200 focus:outline-none focus:border-blue-500 focus:ring-3 focus:ring-blue-500/10 disabled:bg-slate-50 disabled:text-slate-400 disabled:cursor-not-allowed"
-                  placeholder="E.g., 'Write a motivational post about overcoming challenges'"
-                  value={inputValue()}
-                  onInput={handleInputChange}
-                  onKeyDown={handleKeyDown}
-                  rows="2"
-                  disabled={isLoading()}
-                />
-                <button
-                  type="submit"
-                  class="bg-blue-500 hover:bg-blue-600 disabled:bg-slate-300 text-white px-6 py-3 rounded-lg font-semibold transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg disabled:hover:translate-y-0 disabled:hover:shadow-none disabled:cursor-not-allowed flex items-center justify-center gap-2 min-h-12"
-                  disabled={!inputValue().trim() || isLoading()}
-                >
-                  <Show when={isLoading()}>
-                    <div class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                    Generating...
-                  </Show>
-                  <Show when={!isLoading()}>
-                    <svg class="w-4 h-4 stroke-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-                    </svg>
-                    Generate Post
-                  </Show>
-                </button>
-              </div>
-            </form>
-          </div>
-        </section>
+      {/* // Replace this section in your component (around line 240-260): */}
+
+{/* Input Section - Centered when no posts, below posts when they exist */}
+<section class={`mb-8 transition-all duration-300 ${!hasGeneratedPosts() && !isLoading() ? 'flex justify-center items-center min-h-96' : ''}`}>
+  <div class="w-full max-w-2xl mx-auto">
+    <div class="text-center mb-6">
+      <h2 class="text-2xl font-bold text-slate-800 mb-2 flex items-center justify-center gap-2">
+        Describe Your Post
+      </h2>
+      <p class="text-slate-600">Tell us what kind of content you want to create</p>
+    </div>
+    
+    {/* FIXED: Remove the conditional ml-20 class */}
+    <form class="bg-white rounded-xl p-6 shadow-sm border border-slate-200 w-full max-w-2xl mx-auto" onSubmit={handleSubmit}>
+      <div class="flex flex-col gap-4">
+        <textarea
+          ref={textareaRef}
+          class="w-full min-h-32 p-4 border-2 border-slate-200 rounded-lg resize-vertical transition-all duration-200 focus:outline-none focus:border-blue-500 focus:ring-3 focus:ring-blue-500/10 disabled:bg-slate-50 disabled:text-slate-400 disabled:cursor-not-allowed"
+          placeholder="E.g., 'Write a motivational post about overcoming challenges'"
+          value={inputValue()}
+          onInput={handleInputChange}
+          onKeyDown={handleKeyDown}
+          rows="4"
+          disabled={isLoading()}
+        />
+        <button
+          type="submit"
+          class="bg-blue-500 hover:bg-blue-600 disabled:bg-slate-300 text-white px-6 py-3 rounded-lg font-semibold transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg disabled:hover:translate-y-0 disabled:hover:shadow-none disabled:cursor-not-allowed flex items-center justify-center gap-2 min-h-12"
+          disabled={!inputValue().trim() || isLoading()}
+        >
+          <Show when={isLoading()}>
+            <div class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+            Generating...
+          </Show>
+          <Show when={!isLoading()}>
+            <svg class="w-4 h-4 stroke-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+            Generate Post
+          </Show>
+        </button>
+      </div>
+    </form>
+  </div>
+</section>
 
         {/* Empty state - only shows when no posts and not loading */}
         <Show when={!hasGeneratedPosts() && !isLoading()}>
