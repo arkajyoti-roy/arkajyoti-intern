@@ -33,14 +33,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Request body schemas
+# Request schemas
 class PromptRequest(BaseModel):
     prompt: str
 
 class PostRequest(BaseModel):
     text: str
 
-# Post tweet function
+# Simple tweet post function
 def post_tweet(text: str):
     try:
         payload = {"username": USERNAME, "text": text}
@@ -50,21 +50,53 @@ def post_tweet(text: str):
     except Exception as e:
         print("[ERROR] Tweet post failed:", str(e))
 
-# Generate concise AI response
+# AI generation endpoint with tone, hashtags, safety
 @app.post("/generate")
 def generate_response(request: PromptRequest):
     try:
-        refined_prompt = f"Respond concisely in a tweet-like format (under 280 characters): {request.prompt}"
-        response = model.generate_content(refined_prompt)
-        tweet_text = response.text.strip()
+        # Basic inappropriate prompt filter
+        banned_keywords = ["kill", "hate", "violence", "nude", "nsfw", "bomb", "racist", "attack", "suicide"]
+        lowered_prompt = request.prompt.lower()
+        if any(word in lowered_prompt for word in banned_keywords):
+            return JSONResponse(status_code=400, content={
+                "error": "Inappropriate content detected. Please rephrase your prompt."
+            })
 
-        # Trim to 280 chars if needed
-        if len(tweet_text) > 280:
-            tweet_text = tweet_text[:277].rsplit(" ", 1)[0] + "..."
+        # Compose a friendly, human-sounding tweet
+        refined_prompt = f"""
+You're a witty, expressive social media writer. Respond to the following prompt as if you're a human writing a casual tweet. 
+Keep the response under 280 characters. Use natural tone, humor, or empathy — avoid sounding robotic.
+
+Also add 2–3 relevant hashtags based on the topic.
+
+Format your reply like:
+Tweet: [Your tweet here]
+Hashtags: #tag1 #tag2 #tag3
+
+Prompt: {request.prompt}
+"""
+
+        response = model.generate_content(refined_prompt)
+        full_text = response.text.strip()
+
+        # Parse into tweet and hashtags
+        if "Hashtags:" in full_text:
+            tweet_part, tag_part = full_text.split("Hashtags:", 1)
+            tweet_text = tweet_part.replace("Tweet:", "").strip()
+            hashtags = tag_part.strip()
+        else:
+            tweet_text = full_text
+            hashtags = ""
+
+        full_output = f"{tweet_text} {hashtags}".strip()
+
+        # Trim final output if needed
+        if len(full_output) > 280:
+            full_output = full_output[:277].rsplit(" ", 1)[0] + "..."
 
         return {
-            "response": tweet_text,
-            "status": "Generated. Awaiting user confirmation to post."
+            "response": full_output,
+            "status": "Generated with human tone, hashtags, and safety check"
         }
 
     except Exception as e:
@@ -73,7 +105,7 @@ def generate_response(request: PromptRequest):
             "details": str(e)
         })
 
-# Confirm and post tweet
+# Post-tweet confirmation route
 @app.post("/post")
 def confirm_and_post(request: PostRequest):
     try:
