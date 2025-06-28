@@ -3,122 +3,139 @@ import { createStore } from "solid-js/store";
 import { Base_URL } from "./url";
 
 const ChatApp = () => {
+	// State management
 	const [messages, setMessages] = createStore([]);
 	const [inputValue, setInputValue] = createSignal("");
-	const [isLoading, setIsLoading] = createSignal(false);
-	const [error, setError] = createSignal("");
-	const [pendingPosts, setPendingPosts] = createSignal([]);
-	const [isPosting, setIsPosting] = createSignal(false);
+	const [isGenerating, setIsGenerating] = createSignal(false);
+	const [isPublishing, setIsPublishing] = createSignal(false);
+	const [errorMessage, setErrorMessage] = createSignal("");
 
+	// DOM references
 	let textareaRef;
-	let messagesEndRef;
 
-	const stripMarkdown = (text) =>
-		text
-			.replace(/\*\*(.*?)\*\*/g, "$1")
-			.replace(/\*(.*?)\*/g, "$1")
-			.replace(/__(.*?)__/g, "$1");
-
-	const addMessage = (text, sender, isError = false, id = Date.now()) => {
-		const isAssistant = sender === "assistant";
-		setMessages((prev) => [
-			...prev,
-			{
-				id,
-				text,
-				sender,
-				timestamp: new Date(),
-				isError,
-				editable: isAssistant,
-			},
-		]);
+	// Helper function to clean markdown formatting
+	const cleanMarkdown = (text) => {
+		return text
+			.replace(/\*\*(.*?)\*\*/g, "$1") // Remove **bold**
+			.replace(/\*(.*?)\*/g, "$1")     // Remove *italic*
+			.replace(/__(.*?)__/g, "$1");    // Remove __underline__
 	};
 
-	const updateMessageText = (id, newText) => {
+	// Add a new message to the chat
+	const addMessage = (text, sender, isError = false) => {
+		const newMessage = {
+			id: Date.now(),
+			text,
+			sender,
+			timestamp: new Date(),
+			isError,
+			canEdit: sender === "assistant" && !isError,
+			isPublished: false
+		};
+		
+		setMessages(prev => [...prev, newMessage]);
+		return newMessage.id;
+	};
+
+	// Update message text (for editing)
+	const updateMessage = (messageId, newText) => {
 		setMessages(
-			(msg) => msg.id === id,
+			message => message.id === messageId,
 			"text",
 			newText
 		);
 	};
 
-	const generateAIResponse = async (text) => {
-		const endpoints = [`${Base_URL}/generate`];
-		for (const url of endpoints) {
-			try {
-				const res = await fetch(url, {
-					method: "POST",
-					headers: {
-						"Content-Type": "application/json",
-						Accept: "application/json",
-					},
-					mode: "cors",
-					body: JSON.stringify({ prompt: text }),
-				});
-				if (res.ok) {
-					const { response } = await res.json();
-					return response || "Sorry, empty response.";
-				}
-				throw new Error(`Server error: ${res.status}`);
-			} catch (err) {
-				console.log(`Failed on ${url}:`, err.message);
-			}
-		}
-		throw new Error("Server connection issue.");
+	// Mark message as published
+	const markAsPublished = (messageId) => {
+		setMessages(
+			message => message.id === messageId,
+			{ canEdit: false, isPublished: true }
+		);
 	};
 
-	const confirmAndPost = async (text, id) => {
-		setIsPosting(true);
+	// Generate AI response from server
+	const generateResponse = async (userPrompt) => {
 		try {
-			const res = await fetch(`${Base_URL}/post`, {
+			const response = await fetch(`${Base_URL}/generate`, {
 				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ text }),
+				headers: {
+					"Content-Type": "application/json",
+					Accept: "application/json",
+				},
+				mode: "cors",
+				body: JSON.stringify({ prompt: userPrompt }),
 			});
 
-			if (!res.ok) throw new Error(`Post failed: ${res.status}`);
-			addMessage("✅ Tweet posted successfully!", "system");
-			setPendingPosts((prev) =>
-				prev.map((item) => (item.id === id ? { ...item, posted: true } : item))
-			);
-			setMessages(
-				(msg) => msg.id === id,
-				"editable",
-				false
-			);
-		} catch (err) {
-			addMessage(err.message, "assistant", true);
-			setError(err.message);
-		} finally {
-			setIsPosting(false);
+			if (!response.ok) {
+				throw new Error(`Server error: ${response.status}`);
+			}
+
+			const data = await response.json();
+			return data.response || "Sorry, empty response.";
+		} catch (error) {
+			console.error("Generation failed:", error);
+			throw new Error("Server connection issue.");
 		}
 	};
 
+	// Publish post to server
+	const publishPost = async (postText, messageId) => {
+		setIsPublishing(true);
+		
+		try {
+			const response = await fetch(`${Base_URL}/post`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ text: postText }),
+			});
+
+			if (!response.ok) {
+				throw new Error(`Post failed: ${response.status}`);
+			}
+
+			addMessage("✅ Tweet posted successfully!", "system");
+			markAsPublished(messageId);
+		} catch (error) {
+			addMessage(error.message, "assistant", true);
+			setErrorMessage(error.message);
+		} finally {
+			setIsPublishing(false);
+		}
+	};
+
+	// Handle form submission
 	const handleSubmit = async (e) => {
 		e.preventDefault();
-		const msg = inputValue().trim();
-		if (!msg || isLoading()) return;
+		
+		const userInput = inputValue().trim();
+		if (!userInput || isGenerating()) return;
 
-		addMessage(msg, "user");
+		// Add user message
+		addMessage(userInput, "user");
 		setInputValue("");
-		setIsLoading(true);
-		setError("");
-		if (textareaRef) textareaRef.style.height = "auto";
+		setErrorMessage("");
+		
+		// Reset textarea height
+		if (textareaRef) {
+			textareaRef.style.height = "auto";
+		}
 
+		// Generate AI response
+		setIsGenerating(true);
 		try {
-			const aiReply = await generateAIResponse(msg);
-			const cleanReply = stripMarkdown(aiReply);
-			const id = Date.now();
-			addMessage(cleanReply, "assistant", false, id);
-			setPendingPosts((prev) => [...prev, { id, posted: false }]);
-		} catch (err) {
-			addMessage(err.message, "assistant", true);
-			setError(err.message);
+			const aiResponse = await generateResponse(userInput);
+			const cleanResponse = cleanMarkdown(aiResponse);
+			addMessage(cleanResponse, "assistant");
+		} catch (error) {
+			addMessage(error.message, "assistant", true);
+			setErrorMessage(error.message);
 		} finally {
-			setIsLoading(false);
+			setIsGenerating(false);
 		}
 	};
 
+	// Handle textarea key events
 	const handleKeyDown = (e) => {
 		if (e.key === "Enter" && !e.shiftKey) {
 			e.preventDefault();
@@ -126,39 +143,49 @@ const ChatApp = () => {
 		}
 	};
 
-	const autoResizeTextarea = (textarea) => {
+	// Auto-resize textarea as user types
+	const handleInputChange = (e) => {
+		setInputValue(e.target.value);
+		
+		// Auto-resize textarea
+		const textarea = e.target;
 		textarea.style.height = "auto";
 		textarea.style.height = `${Math.min(textarea.scrollHeight, 100)}px`;
 	};
 
-	const handleInputChange = (e) => {
-		setInputValue(e.target.value);
-		autoResizeTextarea(e.target);
-	};
-
+	// Get all generated posts (assistant messages that aren't errors)
 	const getGeneratedPosts = () => {
-		return messages.filter(msg => msg.sender === "assistant" && !msg.isError);
+		return messages.filter(msg => 
+			msg.sender === "assistant" && !msg.isError
+		);
 	};
 
+	// Check if we have any generated posts
 	const hasGeneratedPosts = () => getGeneratedPosts().length > 0;
 
-	// Get the current user prompt (latest user message)
-	const currentPrompt = () => {
+	// Get the most recent user prompt
+	const getCurrentPrompt = () => {
 		const userMessages = messages.filter(msg => msg.sender === "user");
-		return userMessages.length > 0 ? userMessages[userMessages.length - 1].text : "";
+		return userMessages.length > 0 
+			? userMessages[userMessages.length - 1].text 
+			: "";
+	};
+
+	// Format timestamp for display
+	const formatTime = (timestamp) => {
+		return timestamp.toLocaleTimeString([], {
+			hour: "2-digit",
+			minute: "2-digit",
+		});
 	};
 
 	return (
 		<div class="min-h-screen bg-slate-50">
-			{/* Error notification */}
-			<Show when={error()}>
+			{/* Error Notification */}
+			<Show when={errorMessage()}>
 				<div class="fixed top-5 right-5 z-50 animate-pulse">
 					<div class="bg-red-500 text-white px-5 py-3 rounded-lg flex items-center gap-2 font-medium shadow-lg shadow-red-500/30">
-						<svg
-							class="w-5 h-5 flex-shrink-0"
-							fill="currentColor"
-							viewBox="0 0 20 20"
-						>
+						<svg class="w-5 h-5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
 							<title>Error</title>
 							<path
 								fill-rule="evenodd"
@@ -176,12 +203,7 @@ const ChatApp = () => {
 				<div class="max-w-4xl mx-auto px-4 flex items-center justify-center">
 					<div class="flex items-center gap-3">
 						<div class="w-10 h-10 bg-blue-500 rounded-lg flex items-center justify-center">
-							<svg
-								class="w-5 h-5 text-white stroke-2"
-								fill="none"
-								stroke="currentColor"
-								viewBox="0 0 24 24"
-							>
+							<svg class="w-5 h-5 text-white stroke-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 								<title>PostCraft AI Logo</title>
 								<path
 									stroke-linecap="round"
@@ -197,19 +219,15 @@ const ChatApp = () => {
 			</header>
 
 			<main class="max-w-4xl mx-auto px-4 py-8">
-				{/* Generated Posts Section - Shows above input when posts exist */}
+				{/* Generated Posts Section */}
 				<Show when={hasGeneratedPosts()}>
 					<div class="space-y-6">
 						{/* User Prompt Display */}
-						<Show when={currentPrompt()}>
+						<Show when={getCurrentPrompt()}>
 							<div class="mb-6">
 								<div class="flex items-center gap-2 mb-3">
 									<div class="flex items-center gap-2 bg-blue-500 text-white px-3 py-1 rounded-md text-sm font-semibold">
-										<svg
-											class="w-3.5 h-3.5"
-											fill="currentColor"
-											viewBox="0 0 20 20"
-										>
+										<svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
 											<title>Information</title>
 											<path
 												fill-rule="evenodd"
@@ -221,34 +239,27 @@ const ChatApp = () => {
 									</div>
 								</div>
 								<div class="bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
-									{currentPrompt()}
+									{getCurrentPrompt()}
 								</div>
 							</div>
 						</Show>
 
-						{/* Generated Posts Section */}
+						{/* Generated Posts */}
 						<div class="mb-8">
 							<div class="text-center mb-6">
-								<h2 class="text-xl font-bold text-slate-800">
-									Generated Posts
-								</h2>
+								<h2 class="text-xl font-bold text-slate-800">Generated Posts</h2>
 							</div>
 
 							<div class="space-y-6">
-								<Show when={isLoading()}>
+								{/* Loading State */}
+								<Show when={isGenerating()}>
 									<div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden animate-pulse">
 										<div class="p-4 pb-0 flex items-center justify-between">
 											<div class="flex items-center gap-2 bg-slate-400 text-white px-3 py-1 rounded-md text-sm font-semibold">
 												<div class="flex gap-1">
 													<div class="w-1 h-1 bg-white rounded-full animate-bounce" />
-													<div
-														class="w-1 h-1 bg-white rounded-full animate-bounce"
-														style="animation-delay: 0.1s"
-													/>
-													<div
-														class="w-1 h-1 bg-white rounded-full animate-bounce"
-														style="animation-delay: 0.2s"
-													/>
+													<div class="w-1 h-1 bg-white rounded-full animate-bounce" style="animation-delay: 0.1s" />
+													<div class="w-1 h-1 bg-white rounded-full animate-bounce" style="animation-delay: 0.2s" />
 												</div>
 												Generating...
 											</div>
@@ -263,16 +274,14 @@ const ChatApp = () => {
 									</div>
 								</Show>
 
+								{/* Generated Post Cards */}
 								<For each={getGeneratedPosts()}>
-									{(msg) => (
+									{(message) => (
 										<div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden hover:-translate-y-1 hover:shadow-md transition-all duration-200">
+											{/* Post Header */}
 											<div class="p-4 pb-0 flex items-center justify-between">
 												<div class="flex items-center gap-2 bg-blue-500 text-white px-3 py-1 rounded-md text-sm font-semibold">
-													<svg
-														class="w-3.5 h-3.5"
-														fill="currentColor"
-														viewBox="0 0 20 20"
-													>
+													<svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
 														<title>Generated Post</title>
 														<path
 															fill-rule="evenodd"
@@ -283,57 +292,42 @@ const ChatApp = () => {
 													Generated Post
 												</div>
 												<div class="text-slate-500 text-sm font-medium">
-													{msg.timestamp.toLocaleTimeString([], {
-														hour: "2-digit",
-														minute: "2-digit",
-													})}
+													{formatTime(message.timestamp)}
 												</div>
 											</div>
 
+											{/* Post Content */}
 											<div class="p-4">
-												<Show when={msg.editable}>
+												<Show when={message.canEdit}>
 													<textarea
 														class="w-full min-h-32 p-4 border-2 border-slate-200 rounded-lg resize-vertical transition-all duration-200 focus:outline-none focus:border-blue-500 focus:ring-3 focus:ring-blue-500/10"
-														value={msg.text}
-														onInput={(e) =>
-															updateMessageText(msg.id, e.target.value)
-														}
+														value={message.text}
+														onInput={(e) => updateMessage(message.id, e.target.value)}
 														placeholder="Your generated post will appear here..."
 													/>
 												</Show>
-												<Show when={!msg.editable}>
+												<Show when={!message.canEdit}>
 													<div class="text-slate-700 leading-relaxed whitespace-pre-wrap p-4 bg-slate-50 rounded-lg border-l-4 border-blue-500">
-														{msg.text}
+														{message.text}
 													</div>
 												</Show>
 											</div>
 
-											<Show
-												when={
-													msg.editable &&
-													pendingPosts().some(
-														(p) => p.id === msg.id && !p.posted,
-													)
-												}
-											>
+											{/* Post Actions */}
+											<Show when={message.canEdit}>
 												<div class="px-4 pb-4 flex justify-end">
 													<button
 														type="button"
 														class="bg-emerald-500 hover:bg-emerald-600 disabled:bg-slate-300 text-white px-4 py-2 rounded-lg font-semibold transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg disabled:hover:translate-y-0 disabled:hover:shadow-none disabled:cursor-not-allowed flex items-center gap-2"
-														disabled={isPosting()}
-														onClick={() => confirmAndPost(msg.text, msg.id)}
+														disabled={isPublishing()}
+														onClick={() => publishPost(message.text, message.id)}
 													>
-														<Show when={isPosting()}>
+														<Show when={isPublishing()}>
 															<div class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
 															Publishing...
 														</Show>
-														<Show when={!isPosting()}>
-															<svg
-																class="w-4 h-4"
-																fill="none"
-																stroke="currentColor"
-																viewBox="0 0 24 24"
-															>
+														<Show when={!isPublishing()}>
+															<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 																<title>Publish</title>
 																<path
 																	stroke-linecap="round"
@@ -348,14 +342,10 @@ const ChatApp = () => {
 												</div>
 											</Show>
 
-											<Show when={!msg.editable}>
+											<Show when={message.isPublished}>
 												<div class="px-4 pb-4 flex justify-end">
 													<div class="flex items-center gap-2 bg-emerald-50 text-emerald-700 px-3 py-1 rounded-md text-sm font-semibold border border-emerald-200">
-														<svg
-															class="w-3.5 h-3.5"
-															fill="currentColor"
-															viewBox="0 0 20 20"
-														>
+														<svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
 															<title>Published</title>
 															<path
 																fill-rule="evenodd"
@@ -375,27 +365,20 @@ const ChatApp = () => {
 					</div>
 				</Show>
 
-				{/* Loading state when no posts exist yet */}
-				<Show when={!hasGeneratedPosts() && isLoading()}>
+				{/* Loading State (when no posts exist yet) */}
+				<Show when={!hasGeneratedPosts() && isGenerating()}>
 					<section class="mb-8">
 						<div class="text-center mb-6">
 							<h2 class="text-xl font-bold text-slate-800">Generated Posts</h2>
 						</div>
-
 						<div class="space-y-6">
 							<div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden animate-pulse">
 								<div class="p-4 pb-0 flex items-center justify-between">
 									<div class="flex items-center gap-2 bg-slate-400 text-white px-3 py-1 rounded-md text-sm font-semibold">
 										<div class="flex gap-1">
 											<div class="w-1 h-1 bg-white rounded-full animate-bounce" />
-											<div
-												class="w-1 h-1 bg-white rounded-full animate-bounce"
-												style="animation-delay: 0.1s"
-											/>
-											<div
-												class="w-1 h-1 bg-white rounded-full animate-bounce"
-												style="animation-delay: 0.2s"
-											/>
+											<div class="w-1 h-1 bg-white rounded-full animate-bounce" style="animation-delay: 0.1s" />
+											<div class="w-1 h-1 bg-white rounded-full animate-bounce" style="animation-delay: 0.2s" />
 										</div>
 										Generating...
 									</div>
@@ -412,10 +395,8 @@ const ChatApp = () => {
 					</section>
 				</Show>
 
-				{/* Input Section - Centered when no posts, below posts when they exist */}
-				<section
-					class={`mb-8 transition-all duration-300 ${!hasGeneratedPosts() && !isLoading() ? "flex justify-center items-center min-h-96" : ""}`}
-				>
+				{/* Input Section */}
+				<section class={`mb-8 transition-all duration-300 ${!hasGeneratedPosts() && !isGenerating() ? "flex justify-center items-center min-h-96" : ""}`}>
 					<div class="w-full max-w-2xl mx-auto">
 						<div class="text-center mb-6">
 							<h2 class="text-2xl font-bold text-slate-800 mb-2 flex items-center justify-center gap-2">
@@ -439,24 +420,19 @@ const ChatApp = () => {
 									onInput={handleInputChange}
 									onKeyDown={handleKeyDown}
 									rows="4"
-									disabled={isLoading()}
+									disabled={isGenerating()}
 								/>
 								<button
 									type="submit"
 									class="bg-blue-500 hover:bg-blue-600 disabled:bg-slate-300 text-white px-6 py-3 rounded-lg font-semibold transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg disabled:hover:translate-y-0 disabled:hover:shadow-none disabled:cursor-not-allowed flex items-center justify-center gap-2 min-h-12"
-									disabled={!inputValue().trim() || isLoading()}
+									disabled={!inputValue().trim() || isGenerating()}
 								>
-									<Show when={isLoading()}>
+									<Show when={isGenerating()}>
 										<div class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
 										Generating...
 									</Show>
-									<Show when={!isLoading()}>
-										<svg
-											class="w-4 h-4 stroke-2"
-											fill="none"
-											stroke="currentColor"
-											viewBox="0 0 24 24"
-										>
+									<Show when={!isGenerating()}>
+										<svg class="w-4 h-4 stroke-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 											<title>Generate</title>
 											<path
 												stroke-linecap="round"
@@ -472,21 +448,6 @@ const ChatApp = () => {
 						</form>
 					</div>
 				</section>
-
-				{/* Empty state - only shows when no posts and not loading */}
-				<Show when={!hasGeneratedPosts() && !isLoading()}>
-					{/* <div class="text-center py-8 text-slate-500"> */}
-					{/* <div class="w-15 h-15 mx-auto mb-4 opacity-60">
-              <svg class="w-full h-full stroke-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-            </div> */}
-					{/* <h3 class="text-xl font-semibold mb-2 text-slate-700">Ready to Create Amazing Content?</h3> */}
-					{/* <p class="text-slate-600 max-w-md mx-auto">
-              Describe what kind of post you want to create and let AI do the magic!
-            </p> */}
-					{/* </div> */}
-				</Show>
 			</main>
 		</div>
 	);
