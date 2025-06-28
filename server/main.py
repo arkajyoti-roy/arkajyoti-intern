@@ -7,25 +7,25 @@ from dotenv import load_dotenv
 import google.generativeai as genai
 import requests
 
-# Load environment variables from .env file
+
 load_dotenv()
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 TWEET_API_URL = os.getenv("TWITTER_API_URL")
 TWEET_API_KEY = os.getenv("TWITTER_API_URL_KEY")
 USERNAME = os.getenv("TWITTER_USERNAME")
 
-# Check if Gemini API key is provided
-if not GEMINI_API_KEY:
-    raise ValueError("Missing GEMINI_API_KEY in .env")
 
-# Setup Gemini model
+# if not GEMINI_API_KEY:
+#     raise ValueError("Missing GEMINI_API_KEY in .env")
+
+
 genai.configure(api_key=GEMINI_API_KEY)
 gemini = genai.GenerativeModel("gemini-1.5-flash")
 
-# Create FastAPI app
+
 app = FastAPI()
 
-# Allow frontend access (CORS)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173", "https://arkajyoti-intern.vercel.app"],
@@ -42,7 +42,7 @@ class PromptRequest(BaseModel):
 class PostRequest(BaseModel):
     text: str
 
-# Helper: sends tweet using external API
+
 def post_tweet(text: str):
     try:
         payload = {"username": USERNAME, "text": text}
@@ -52,15 +52,15 @@ def post_tweet(text: str):
     except Exception as err:
         print("[ERROR] Tweet failed:", err)
 
-# Route: Generate tweet text
+
 @app.post("/generate")
 def generate_tweet(req: PromptRequest):
-    # Block unsafe prompts
+
     banned = ["kill", "hate", "violence", "nude", "nsfw", "bomb", "racist", "attack", "suicide"]
     if any(bad in req.prompt.lower() for bad in banned):
         return JSONResponse(status_code=400, content={"error": "Inappropriate content"})
 
-    # Prompt Gemini for a tweet-like response
+
     final_prompt = f"""
 Write a tweet based on the prompt below. Keep it under 280 characters. Be friendly or funny. Add 2-3 hashtags.
 
@@ -82,7 +82,7 @@ Hashtags: #tag1 #tag2
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": "Gemini failed", "details": str(e)})
 
-# Route: Post tweet to API
+
 @app.post("/post")
 def post_generated_tweet(req: PostRequest):
     try:
