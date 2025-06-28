@@ -3,25 +3,25 @@ import { createStore } from "solid-js/store";
 import { Base_URL } from "./url";
 
 const ChatApp = () => {
-	// State management
+	
 	const [messages, setMessages] = createStore([]);
 	const [inputValue, setInputValue] = createSignal("");
 	const [isGenerating, setIsGenerating] = createSignal(false);
 	const [isPublishing, setIsPublishing] = createSignal(false);
 	const [errorMessage, setErrorMessage] = createSignal("");
 
-	// DOM references
+	
 	let textareaRef;
 
-	// Helper function to clean markdown formatting
+	
 	const cleanMarkdown = (text) => {
 		return text
-			.replace(/\*\*(.*?)\*\*/g, "$1") // Remove **bold**
-			.replace(/\*(.*?)\*/g, "$1")     // Remove *italic*
-			.replace(/__(.*?)__/g, "$1");    // Remove __underline__
+			.replace(/\*\*(.*?)\*\*/g, "$1") 
+			.replace(/\*(.*?)\*/g, "$1")     
+			.replace(/__(.*?)__/g, "$1");    
 	};
 
-	// Add a new message to the chat
+
 	const addMessage = (text, sender, isError = false) => {
 		const newMessage = {
 			id: Date.now(),
@@ -37,7 +37,7 @@ const ChatApp = () => {
 		return newMessage.id;
 	};
 
-	// Update message text (for editing)
+	
 	const updateMessage = (messageId, newText) => {
 		setMessages(
 			message => message.id === messageId,
@@ -46,7 +46,7 @@ const ChatApp = () => {
 		);
 	};
 
-	// Mark message as published
+
 	const markAsPublished = (messageId) => {
 		setMessages(
 			message => message.id === messageId,
@@ -54,7 +54,6 @@ const ChatApp = () => {
 		);
 	};
 
-	// Generate AI response from server
 	const generateResponse = async (userPrompt) => {
 		try {
 			const response = await fetch(`${Base_URL}/generate`, {
@@ -79,7 +78,7 @@ const ChatApp = () => {
 		}
 	};
 
-	// Publish post to server
+	
 	const publishPost = async (postText, messageId) => {
 		setIsPublishing(true);
 		
@@ -104,24 +103,24 @@ const ChatApp = () => {
 		}
 	};
 
-	// Handle form submission
+	
 	const handleSubmit = async (e) => {
 		e.preventDefault();
 		
 		const userInput = inputValue().trim();
 		if (!userInput || isGenerating()) return;
 
-		// Add user message
+	
 		addMessage(userInput, "user");
 		setInputValue("");
 		setErrorMessage("");
 		
-		// Reset textarea height
+		
 		if (textareaRef) {
 			textareaRef.style.height = "auto";
 		}
 
-		// Generate AI response
+	
 		setIsGenerating(true);
 		try {
 			const aiResponse = await generateResponse(userInput);
@@ -135,7 +134,7 @@ const ChatApp = () => {
 		}
 	};
 
-	// Handle textarea key events
+
 	const handleKeyDown = (e) => {
 		if (e.key === "Enter" && !e.shiftKey) {
 			e.preventDefault();
@@ -143,27 +142,27 @@ const ChatApp = () => {
 		}
 	};
 
-	// Auto-resize textarea as user types
+	
 	const handleInputChange = (e) => {
 		setInputValue(e.target.value);
 		
-		// Auto-resize textarea
+		
 		const textarea = e.target;
 		textarea.style.height = "auto";
 		textarea.style.height = `${Math.min(textarea.scrollHeight, 100)}px`;
 	};
 
-	// Get all generated posts (assistant messages that aren't errors)
+	
 	const getGeneratedPosts = () => {
 		return messages.filter(msg => 
 			msg.sender === "assistant" && !msg.isError
 		);
 	};
 
-	// Check if we have any generated posts
+	
 	const hasGeneratedPosts = () => getGeneratedPosts().length > 0;
 
-	// Get the most recent user prompt
+	
 	const getCurrentPrompt = () => {
 		const userMessages = messages.filter(msg => msg.sender === "user");
 		return userMessages.length > 0 
@@ -171,7 +170,7 @@ const ChatApp = () => {
 			: "";
 	};
 
-	// Format timestamp for display
+	
 	const formatTime = (timestamp) => {
 		return timestamp.toLocaleTimeString([], {
 			hour: "2-digit",
@@ -181,7 +180,7 @@ const ChatApp = () => {
 
 	return (
 		<div class="min-h-screen bg-slate-50">
-			{/* Error Notification */}
+			
 			<Show when={errorMessage()}>
 				<div class="fixed top-5 right-5 z-50 animate-pulse">
 					<div class="bg-red-500 text-white px-5 py-3 rounded-lg flex items-center gap-2 font-medium shadow-lg shadow-red-500/30">
@@ -198,7 +197,7 @@ const ChatApp = () => {
 				</div>
 			</Show>
 
-			{/* Header */}
+	
 			<header class="bg-white border-b border-slate-200 py-4 shadow-sm">
 				<div class="max-w-4xl mx-auto px-4 flex items-center justify-center">
 					<div class="flex items-center gap-3">
