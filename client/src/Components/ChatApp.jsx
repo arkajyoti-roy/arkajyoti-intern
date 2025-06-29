@@ -3,22 +3,23 @@ import { createStore } from "solid-js/store";
 import { Base_URL } from "./url";
 
 const ChatApp = () => {
-	
+
 	const [messages, setMessages] = createStore([]);
 	const [inputValue, setInputValue] = createSignal("");
 	const [isGenerating, setIsGenerating] = createSignal(false);
 	const [isPublishing, setIsPublishing] = createSignal(false);
 	const [errorMessage, setErrorMessage] = createSignal("");
+	const [sessionId, setSessionId] = createSignal(localStorage.getItem("tweet_session") || null);
 
-	
+
 	let textareaRef;
 
-	
+
 	const cleanMarkdown = (text) => {
 		return text
-			.replace(/\*\*(.*?)\*\*/g, "$1") 
-			.replace(/\*(.*?)\*/g, "$1")     
-			.replace(/__(.*?)__/g, "$1");    
+			.replace(/\*\*(.*?)\*\*/g, "$1")
+			.replace(/\*(.*?)\*/g, "$1")
+			.replace(/__(.*?)__/g, "$1");
 	};
 
 
@@ -32,12 +33,12 @@ const ChatApp = () => {
 			canEdit: sender === "assistant" && !isError,
 			isPublished: false
 		};
-		
+
 		setMessages(prev => [...prev, newMessage]);
 		return newMessage.id;
 	};
 
-	
+
 	const updateMessage = (messageId, newText) => {
 		setMessages(
 			message => message.id === messageId,
@@ -54,34 +55,36 @@ const ChatApp = () => {
 		);
 	};
 
-	const generateResponse = async (userPrompt) => {
-		try {
-			const response = await fetch(`${Base_URL}/generate`, {
-				method: "POST",
-				headers: {
-					"Content-Type": "application/json",
-					Accept: "application/json",
-				},
-				mode: "cors",
-				body: JSON.stringify({ prompt: userPrompt }),
-			});
+ const generateResponse = async (userPrompt, sessionId, history = []) => {
+  const payload = {
+    prompt: userPrompt,
+    session_id: sessionId,
+    history: history.slice(-10) // keep last 10 prompt–response pairs
+  };
 
-			if (!response.ok) {
-				throw new Error(`Server error: ${response.status}`);
-			}
+  const response = await fetch(`${Base_URL}/generate`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json"
+    },
+    body: JSON.stringify(payload)
+  });
 
-			const data = await response.json();
-			return data.response || "Sorry, empty response.";
-		} catch (error) {
-			console.error("Generation failed:", error);
-			throw new Error("Server connection issue.");
-		}
-	};
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.error || `Server error: ${response.status}`);
+  }
 
-	
+  return data;
+};
+
+
+
+
 	const publishPost = async (postText, messageId) => {
 		setIsPublishing(true);
-		
+
 		try {
 			const response = await fetch(`${Base_URL}/post`, {
 				method: "POST",
@@ -103,36 +106,49 @@ const ChatApp = () => {
 		}
 	};
 
-	
+
 	const handleSubmit = async (e) => {
-		e.preventDefault();
-		
-		const userInput = inputValue().trim();
-		if (!userInput || isGenerating()) return;
+  e.preventDefault();
 
-	
-		addMessage(userInput, "user");
-		setInputValue("");
-		setErrorMessage("");
-		
-		
-		if (textareaRef) {
-			textareaRef.style.height = "auto";
-		}
+  const userInput = inputValue().trim();
+  if (!userInput || isGenerating()) return;
 
-	
-		setIsGenerating(true);
-		try {
-			const aiResponse = await generateResponse(userInput);
-			const cleanResponse = cleanMarkdown(aiResponse);
-			addMessage(cleanResponse, "assistant");
-		} catch (error) {
-			addMessage(error.message, "assistant", true);
-			setErrorMessage(error.message);
-		} finally {
-			setIsGenerating(false);
-		}
-	};
+  addMessage(userInput, "user");
+  setInputValue("");
+  setErrorMessage("");
+
+  // Auto-resize textarea
+  if (textareaRef) textareaRef.style.height = "auto";
+
+  setIsGenerating(true);
+  try {
+    // Create last 10 user–assistant pairs
+    const conversationHistory = messages
+      .filter(msg => msg.sender === "user" || msg.sender === "assistant")
+      .slice(-20) // max 10 pairs
+      .reduce((acc, msg, i, arr) => {
+        if (msg.sender === "user" && arr[i + 1]?.sender === "assistant") {
+          acc.push({ prompt: msg.text, tweet: arr[i + 1].text });
+        }
+        return acc;
+      }, []);
+
+    const aiResponse = await generateResponse(userInput, sessionId(), conversationHistory);
+
+    if (!sessionId() && aiResponse.session_id) {
+      setSessionId(aiResponse.session_id);
+      localStorage.setItem("tweet_session", aiResponse.session_id);
+    }
+
+    addMessage(cleanMarkdown(aiResponse.response), "assistant");
+  } catch (error) {
+    addMessage(error.message, "assistant", true);
+    setErrorMessage(error.message);
+  } finally {
+    setIsGenerating(false);
+  }
+};
+
 
 
 	const handleKeyDown = (e) => {
@@ -142,35 +158,35 @@ const ChatApp = () => {
 		}
 	};
 
-	
+
 	const handleInputChange = (e) => {
 		setInputValue(e.target.value);
-		
-		
+
+
 		const textarea = e.target;
 		textarea.style.height = "auto";
 		textarea.style.height = `${Math.min(textarea.scrollHeight, 100)}px`;
 	};
 
-	
+
 	const getGeneratedPosts = () => {
-		return messages.filter(msg => 
+		return messages.filter(msg =>
 			msg.sender === "assistant" && !msg.isError
 		);
 	};
 
-	
+
 	const hasGeneratedPosts = () => getGeneratedPosts().length > 0;
 
-	
+
 	const getCurrentPrompt = () => {
 		const userMessages = messages.filter(msg => msg.sender === "user");
-		return userMessages.length > 0 
-			? userMessages[userMessages.length - 1].text 
+		return userMessages.length > 0
+			? userMessages[userMessages.length - 1].text
 			: "";
 	};
 
-	
+
 	const formatTime = (timestamp) => {
 		return timestamp.toLocaleTimeString([], {
 			hour: "2-digit",
@@ -180,7 +196,7 @@ const ChatApp = () => {
 
 	return (
 		<div class="min-h-screen bg-slate-50">
-			
+
 			<Show when={errorMessage()}>
 				<div class="fixed top-5 right-5 z-50 animate-pulse">
 					<div class="bg-red-500 text-white px-5 py-3 rounded-lg flex items-center gap-2 font-medium shadow-lg shadow-red-500/30">
@@ -197,7 +213,7 @@ const ChatApp = () => {
 				</div>
 			</Show>
 
-	
+
 			<header class="bg-white border-b border-slate-200 py-4 shadow-sm">
 				<div class="max-w-4xl mx-auto px-4 flex items-center justify-center">
 					<div class="flex items-center gap-3">
