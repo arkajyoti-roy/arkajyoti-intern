@@ -1,0 +1,89 @@
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel
+import os
+from dotenv import load_dotenv
+import google.generativeai as genai
+import requests
+
+load_dotenv()
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+TWEET_API_URL = os.getenv("TWITTER_API_URL")
+TWEET_API_KEY = os.getenv("TWITTER_API_URL_KEY")
+USERNAME = os.getenv("TWITTER_USERNAME")
+
+genai.configure(api_key=GEMINI_API_KEY)
+gemini = genai.GenerativeModel("gemini-1.5-flash")
+
+app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173", "https://arkajyoti-intern.vercel.app"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+class PromptRequest(BaseModel):
+    prompt: str
+
+class PostRequest(BaseModel):
+    text: str
+
+def post_tweet(text: str):
+    try:
+        payload = {"username": USERNAME, "text": text}
+        headers = {"Content-Type": "application/json", "api-key": TWEET_API_KEY}
+        response = requests.post(TWEET_API_URL, json=payload, headers=headers)
+        print("[INFO] Tweet posted:", response.status_code)
+    except Exception as err:
+        print("[ERROR] Tweet failed:", err)
+
+@app.post("/generate")
+def generate_tweet(req: PromptRequest):
+    banned = ["kill", "hate", "violence", "nude", "nsfw", "bomb", "racist", "attack", "suicide"]
+    if any(bad in req.prompt.lower() for bad in banned):
+        return JSONResponse(status_code=400, content={"error": "Inappropriate content"})
+
+    final_prompt = f"""
+You are a tweet assistant. If the prompt is not suitable for Twitter (e.g., it's too vague, too technical, or inappropriate), reply with:
+
+Tweet: Not suitable for Twitter
+Hashtags: #NA
+
+Prompt: {req.prompt}
+Format:
+Tweet: [Your tweet]
+Hashtags: #tag1 #tag2
+"""
+
+    try:
+        result = gemini.generate_content(final_prompt).text.strip()
+
+        if not result or "Tweet:" not in result:
+            return JSONResponse(status_code=400, content={"error": "Not suitable for a tweet"})
+
+        tweet, tags = result.split("Hashtags:", 1) if "Hashtags:" in result else (result, "")
+        tweet = tweet.replace("Tweet:", "").strip()
+        tags = tags.strip()
+        full = f"{tweet} {tags}".strip()
+
+        if "not suitable" in tweet.lower() or len(tweet) < 10:
+            return JSONResponse(status_code=400, content={"error": "Not suitable for a tweet"})
+
+        if len(full) > 280:
+            full = full[:277].rsplit(" ", 1)[0] + "..."
+
+        return {"response": full, "status": "Generated tweet"}
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": "Gemini failed", "details": str(e)})
+
+@app.post("/post")
+def post_generated_tweet(req: PostRequest):
+    try:
+        post_tweet(req.text)
+        return {"status": "Tweet posted"}
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": "Post failed", "details": str(e)})

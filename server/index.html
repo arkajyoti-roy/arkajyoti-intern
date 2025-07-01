@@ -1,0 +1,19 @@
+<input type="text" id="promptInput" placeholder="Enter your prompt..." />
+<button onclick="generateImage()">Generate</button>
+<br />
+<img id="generatedImage" style="max-width: 100%; margin-top: 20px;" />
+
+<script>
+  async function generateImage() {
+    const prompt = document.getElementById("promptInput").value;
+
+    const res = await fetch(`http://localhost:8000/generate-image?prompt=${encodeURIComponent(prompt)}`);
+    const data = await res.json();
+
+    if (data.image) {
+      document.getElementById("generatedImage").src = `data:image/png;base64,${data.image}`;
+    } else {
+      alert("Image generation failed.");
+    }
+  }
+</script>
