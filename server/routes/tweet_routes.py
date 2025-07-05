@@ -67,9 +67,9 @@ def history(session_id: str):
         for item in data
     ]
 
-@router.get("/generate-image")
-def regenerate_image(prompt: str = Query(...)):
-    base64_img = generate_image(prompt)
-    if not base64_img:
-        return JSONResponse(status_code=500, content={"error": "Image generation failed."})
-    return {"image": base64_img}
+# @router.get("/generate-image")
+# def regenerate_image(prompt: str = Query(...)):
+#     base64_img = generate_image(prompt)
+#     if not base64_img:
+#         return JSONResponse(status_code=500, content={"error": "Image generation failed."})
+#     return {"image": base64_img}
