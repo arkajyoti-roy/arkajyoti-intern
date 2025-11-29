@@ -48,7 +48,7 @@ Hashtags: #example #example
 
     try:
         # 🔁 New model per request to avoid memory/state carry-over
-        model = GenerativeModel("gemini-1.5-flash")
+        model = GenerativeModel("gemini-2.0-flash-lite")
         response = model.generate_content(system_instruction)
         gemini_response = response.text.strip()
         print("[DEBUG] Gemini raw response:", gemini_response)

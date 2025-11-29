@@ -5,9 +5,11 @@ from io import BytesIO
 import base64
 
 load_dotenv()
+HF_TOKEN = os.getenv("HF_TOKEN")
 
-HF_TOKEN = "arka_2345678901234567"
-API_URL = "https://imggen-amber.vercel.app/api/generate-image"
+# HF_TOKEN = "arka_2345678901234567"
+API_URL = os.getenv("IMG_URL")
+# API_URL = "https://imggen-amber.vercel.app/api/generate-image"
 HEADERS = {"x-api-key": HF_TOKEN}
 
 def generate_image(prompt: str) -> str:
@@ -17,7 +19,7 @@ def generate_image(prompt: str) -> str:
 
     try:
         print(f"[INFO] Generating image for prompt: {prompt}")
-        payload = {"prompt": prompt}  # ✅ aligned with frontend structure
+        payload = {"prompt": prompt}  
 
         response = requests.post(API_URL, headers=HEADERS, json=payload)
         print(f"[DEBUG] Response status: {response.status_code}")
