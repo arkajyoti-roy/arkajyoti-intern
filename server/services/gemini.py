@@ -46,6 +46,7 @@ Tweet: ...
 Hashtags: #example #example
 """.strip()
 
+
     try:
         # 🔁 New model per request to avoid memory/state carry-over
         model = GenerativeModel("gemini-2.0-flash-lite")
